@@ -1,4 +1,4 @@
-import std/[hashes,asynchttpserver,asyncdispatch,tables,strutils]
+import std/[hashes,asynchttpserver,asyncdispatch,tables,strutils,sequtils]
 type
   Something = object
     foo: int
@@ -16,55 +16,22 @@ echo hash(x)
 
 # proc handleGET()
 
-
 proc parseMultipartFormData(req: Request): Table[string, string] =
     var formData = initTable[string, string]()
     var contentType: string = ""
     var boundary: string = ""
+    var str:string = ""
+    var headers = req.headers["content-type"]
+    var strheader = toString(headers)
+    var spl = strheader.split(';')
+    echo spl
+    echo req.body
 
-    for part in req.headers["content-type"]:
-        if part.strip().startswith("multipart/form-data"):
-            let parts = part.split(";")
-            for p in parts:
-                if p.strip().startswith("boundary="):
-                    boundary = p.strip().split("boundary=")[1].strip()
-                    break
-            contentType = part.strip()
-            break
 
-    if contentType == "multipart/form-data":
-        let bodyStream = newFileStream(stdin.handle, fmReadable)
-        bodyStream.rewind()
-
-        var boundaryFound = false
-        var boundaryStart: int
-
-        while not bodyStream.atEnd:
-            let line = bodyStream.readLine().strip()
-            if line == "--" & boundary:
-                boundaryFound = true
-            elif line == "--" & boundary & "--":
-                break
-            elif boundaryFound:
-                if line.len > 0:
-                    var header: string
-                    var headerValue: string
-                    var fieldName: string
-
-                    let fieldData = line.split(": ")
-                    if fieldData.len > 1:
-                        header = fieldData[0]
-                        headerValue = fieldData[1]
-                    else:
-                        fieldName = line.split("=")[1].split(";")[0].strip().strip("\"")
-                        header = line.split("=")[0].strip()
-
-                        let fieldData = headerValue.split(";")
-                        headerValue = fieldData[0].strip()
-                        
-                    formData[fieldName] = headerValue
+    echo contentType
 
     return formData
+
 
 proc handlePOST(req: Request) {.async.} =  
     echo parseMultipartFormData(req)
