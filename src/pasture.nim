@@ -24,11 +24,32 @@ proc parseMultipartFormData(req: Request): Table[string, string] =
     var headers = req.headers["content-type"]
     var strheader = toString(headers)
     var spl = strheader.split(';')
-    echo spl
-    echo req.body
+    var inHeader = true
+    contentType = spl[0]
+    if contentType == "multipart/form-data":
+        var data = req.body.splitLines()
+        boundary = data[0]
+        for i in data[1..^1]:
+            if i == boundary & "--":
+                break
+            if i == "":
+                inHeader = not inHeader
+                continue
+            if i.startsWith("{:}"):
+                return formData
+            if not inHeader:
+                echo i
+                continue
+            var linSplit = i.split(';');
+            for j in linSplit:
+                let content = j.split('=')
+                let meta = j.split(':')
+                if content.len > 1:
+                    formData[content[0]] = content[1]
+                if meta.len > 1:
+                    formData[meta[0]] = meta[1]
+                
 
-
-    echo contentType
 
     return formData
 
