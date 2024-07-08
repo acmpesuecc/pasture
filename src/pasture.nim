@@ -1,18 +1,4 @@
-import std/[hashes,asynchttpserver,asyncdispatch,tables,strutils,sequtils]
-type
-  Something = object
-    foo: int
-    bar: string
-
-proc hash(x: Something): Hash =
-  ## Computes a Hash from `x`.
-  var h: Hash = 0
-  h = h !& hash(x.foo)
-  h = h !& hash(x.bar)
-  result = !$h
-
-var x = Something(foo: 20 ,bar:"jackson")
-echo hash(x)
+import std/[private/osdirs,oids,asynchttpserver,asyncdispatch,tables,strutils]
 
 # proc handleGET()
 
@@ -29,6 +15,7 @@ proc parseMultipartFormData(req: Request): Table[string, string] =
     if contentType == "multipart/form-data":
         var data = req.body.splitLines()
         boundary = data[0]
+        var body: string
         for i in data[1..^1]:
             if i == boundary & "--":
                 break
@@ -38,7 +25,7 @@ proc parseMultipartFormData(req: Request): Table[string, string] =
             if i.startsWith("{:}"):
                 return formData
             if not inHeader:
-                echo i
+                body = body & i & '\n'
                 continue
             var linSplit = i.split(';');
             for j in linSplit:
@@ -48,6 +35,7 @@ proc parseMultipartFormData(req: Request): Table[string, string] =
                     formData[content[0]] = content[1]
                 if meta.len > 1:
                     formData[meta[0]] = meta[1]
+        formData["body"] = body
                 
 
 
@@ -55,24 +43,30 @@ proc parseMultipartFormData(req: Request): Table[string, string] =
 
 
 proc handlePOST(req: Request) {.async.} =  
-    echo parseMultipartFormData(req)
+    let data = parseMultipartFormData(req)
+    if data["body"] == "":
+        await req.respond(Http200, "File has no body. Nothing written to pasture")
+        return
+    let hash = genOid()
+    writeFile("pasture/" & $hash, data["body"])
+    req.respond(Http200, "File saved. Hash:" & $hash & $'\n')
+    
+    
 
 proc reqHandler(req: Request) {.async.} = 
     case req.reqMethod:
     of HttpMethod.HttpGet:
-        echo "GET"
+        echo req.url.path
         # handleGET()
     of HttpPost:
+        echo "POST"
         await handlePOST(req)
     else: discard
 
 proc main() {.async.}=
+    discard existsOrCreateDir("pasture")
     let server = newAsyncHttpServer()
-    server.listen(Port(8008))
-    echo("HTTP Server running on :",$(8008))
-    while true:
-        if server.shouldAcceptRequest():
-            await server.acceptRequest(reqHandler)
+    await serve(server, Port(8008),reqHandler)
 
 when isMainModule:
     waitFor main()
