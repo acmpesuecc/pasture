@@ -5,23 +5,13 @@ proc handleGET(req: Request) {.async.} =
     if path == "/":
         await req.respond(Http200, "path: /")
     else:
-        let hash = path[1..^0]
+        let hash = path[1..^1]
 
         try:
             let file = readFile("pasture/" & hash)
             await req.respond(Http200, file)
         except IOError:
             await req.respond(Http404, "File not found")
-
-        # if not file_exists_or_not("pasture/" & hash):
-        #     await req.respond(Http404, "File not found")
-        # else:
-        #     let file = readFile("pasture/" & hash)
-        #     await req.respond(Http200, file)
-
-
-
-# ref: https://stackoverflow.com/questions/2305218/what-is-the-boundary-parameter-in-an-http-multi-part-post-request
 
 proc parseMultipartFormData(req: Request): Table[string, string] =
     var formData = initTable[string, string]()
