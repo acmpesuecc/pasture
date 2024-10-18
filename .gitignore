@@ -1,3 +1,4 @@
 bin/
+nimbledeps/
 nimble.develop
 nimble.paths
