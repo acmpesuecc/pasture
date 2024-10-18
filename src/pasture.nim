@@ -2,47 +2,71 @@ import std/[private/osdirs,oids,asynchttpserver,asyncdispatch,tables,strutils]
 
 # proc handleGET()
 
+# ref: https://stackoverflow.com/questions/2305218/what-is-the-boundary-parameter-in-an-http-multi-part-post-request
+
 proc parseMultipartFormData(req: Request): Table[string, string] =
     var formData = initTable[string, string]()
-    var contentType: string = ""
-    var boundary: string = ""
-    var str:string = ""
-    var headers = req.headers["content-type"]
-    var strheader = toString(headers)
-    var spl = strheader.split(';')
+    var contentType, boundary, body: string
     var inHeader = true
+
+    let headers = req.headers["content-type"]
+    let strheader = toString(headers)
+    let spl = strheader.split(';')
     contentType = spl[0]
+
     if contentType == "multipart/form-data":
-        var data = req.body.splitLines()
+        let data = req.body.splitLines()
         boundary = data[0]
-        var body: string
-        for i in data[1..^1]:
-            if i == boundary & "--":
-                break
-            if i == "":
-                inHeader = not inHeader
+
+        # skipping first and last line cus they are boundaries in form-data/multipart
+        for line in data[1..^2]:
+            # write logic from fresh here
+            if line.startsWith(boundary):
+                inHeader = true
                 continue
-            if i.startsWith("{:}"):
-                return formData
-            if not inHeader:
-                body = body & i & '\n'
+
+            if inHeader:
+                if line == "\r\n" or line == "":
+                    inHeader = false
                 continue
-            var linSplit = i.split(';');
-            for j in linSplit:
-                let content = j.split('=')
-                let meta = j.split(':')
+
+            body.add(line & '\n')
+            # if line == boundary & "--":
+            #     break
+
+            # # empty lines are lost [BUG]
+            # # https://stackoverflow.com/questions/5757290/http-header-line-break-style
+            # if line == "\r\n" or line == "":
+            #     inHeader = false
+            # else:
+            #     body.add(line & '\n')
+            #     continue
+
+
+            # if line.startsWith(boundary):
+            #     continue
+
+            # if not inHeader:
+            #     body.add(line & '\n')
+            #     continue
+
+
+            let linSplit = line.split(';')
+            for part in linSplit:
+                let content = part.split('=')
+                let meta = part.split(':')
                 if content.len > 1:
                     formData[content[0]] = content[1]
                 if meta.len > 1:
                     formData[meta[0]] = meta[1]
-        formData["body"] = body
-                
 
+        formData["body"] = body
 
     return formData
 
 
-proc handlePOST(req: Request) {.async.} =  
+
+proc handlePOST(req: Request) {.async.} =
     let data = parseMultipartFormData(req)
     if data["body"] == "":
         await req.respond(Http200, "File has no body. Nothing written to pasture")
@@ -50,10 +74,10 @@ proc handlePOST(req: Request) {.async.} =
     let hash = genOid()
     writeFile("pasture/" & $hash, data["body"])
     req.respond(Http200, "File saved. Hash:" & $hash & $'\n')
-    
-    
 
-proc reqHandler(req: Request) {.async.} = 
+
+
+proc reqHandler(req: Request) {.async.} =
     case req.reqMethod:
     of HttpMethod.HttpGet:
         echo req.url.path
