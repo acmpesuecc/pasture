@@ -33,3 +33,12 @@ Using [curl](https://curl.se/)
 ```sh
 curl -F curl -F file=@file.txt http://localhost:8000
 ```
+
+### New Feature: Paste Expiry
+
+You can now set an expiration time for your pastes using the `expire` parameter. Example:
+
+Using curl:
+
+
+This will delete the paste after 1 hour.
